@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-
+This is cli monitoring tool for MySQL
 """
 
 import argparse
@@ -13,15 +13,15 @@ import sys
 import threading
 import time
 from datetime import datetime
+from pytz import timezone
 
-#import MySQLdb as Database
 import mysql.connector as Database
 
 __title__ = 'mysqlstatus'
-__version__ = '0.2.0-DEV'
-__author__ = 'Shoma Suzuki'
+__version__ = '1.0.0-DEV'
+__author__ = 'khkwon01'
 __license__ = 'MIT'
-__copyright__ = 'Copyright 2022'
+__copyright__ = 'Copyright 2023'
 
 
 def get_args_parser():
@@ -203,9 +203,16 @@ class QueryThread(threading.Thread):
                 self._mysql_status.get('Questions', 0)))
         try:
             qps = inc_query / elapsed_time
+            buffhit = ((float(self._mysql_status.get('Innodb_buffer_pool_read_requests')) / (float(self._mysql_status.get('Innodb_buffer_pool_read_requests')) + float(self._mysql_status.get('Innodb_buffer_pool_reads')))) * 100)
         except:
             qps = 0.0
+            buffhit = 0.0
         self._mysql_status.update({'QPS': "%0.2f" % qps})
+        self._mysql_status.update({'Buffer_hit': "%.2f" % float(buffhit)})
+
+        del self._mysql_status['Innodb_buffer_pool_read_requests']
+        del self._mysql_status['Innodb_buffer_pool_reads']
+
         return qps
 
     def to_dict(self, dictset):
@@ -217,6 +224,7 @@ class QueryThread(threading.Thread):
 
 class MySQLStatus:
     keywords = (
+        "Buffer_hit",    
         "QPS",
         "Aborted_connects",
         "Binlog_cache_disk_use",
@@ -239,9 +247,6 @@ class MySQLStatus:
         "Opened_table_definitions",
         "Opened_tables",
         "Opened_tables",
-        "Qcache_free_memory",
-        "Qcache_hits",
-        "Qcache_queries_in_cache",
         "Questions",
         "Select_full_join",
         "Select_full_range_join",
@@ -258,8 +263,6 @@ class MySQLStatus:
         "Threads_created",
         "Threads_running",
         "Uptime",
-        "Innodb_buffer_pool_read_requests",
-        "Innodb_buffer_pool_reads",
     )
 
     def __init__(self, options):
@@ -330,7 +333,7 @@ class IntractiveMode(MySQLStatus):
         variables = self.qthread.mysql_variables
         data = {
             'hostname': variables.get('hostname'),
-            'currenttime': datetime.now().strftime("%Y-%m-%d %H:%m:%S"),
+            'currenttime': datetime.now(timezone('Asia/Seoul')).strftime("%Y-%m-%d %H:%m:%S"),
             'mysql_version': variables.get('version'),
         }
         data = "%(hostname)s, %(currenttime)s, %(mysql_version)s" % data
@@ -350,7 +353,7 @@ class IntractiveMode(MySQLStatus):
         status = self.qthread.mysql_status
         y = 2
         for k in self.keywords:
-            data = "%-25s: %12s" % (k, status.get(k))
+            data = "%-35s: %12s" % (k, status.get(k))
             if y + 1 < self.window_max_y:
                 self.window.addstr(y, 0, data)
 
@@ -386,9 +389,7 @@ class IntractiveMode(MySQLStatus):
         curses.endwin()
         self.qthread.stop = True
 
-        while self.qthread.is_alive():
-            # wait for stop QueryThread
-            pass
+        self.qthread.join(timeout=5)
 
     def show_help(self):
         """Help:
@@ -449,7 +450,7 @@ class CliMode(MySQLStatus):
 
     def cleanup(self):
         self.qthread.stop = True
-        while self.qthread.isAlive():
+        while self.qthread.is_Alive():
             pass
 
 
