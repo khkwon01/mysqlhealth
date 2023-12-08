@@ -64,7 +64,7 @@ def get_args_parser():
     parser.add_argument("-m", "--mode",
         default='status',
         nargs='?',
-        choices=['status', 'process'],
+        choices=['status', 'process', 'global'],
         help="monitoring Mode")
     parser.add_argument("--debug",
         default=False,
@@ -83,6 +83,7 @@ class QueryThread(threading.Thread):
     _mysql_variables = None
     _mysql_status = None
     _mysql_procesesslist = None
+    _mysql_global = None
 
     def __init__(self, **kwargs):
 
@@ -127,8 +128,10 @@ class QueryThread(threading.Thread):
     def mode(self, value):
         if value == 'process':
             self._mode = 'process'
-        else:
+        elif value == 'status':
             self._mode = 'status'
+        else:
+            self._mode = 'global'
 
     @property
     def stop(self):
@@ -142,12 +145,18 @@ class QueryThread(threading.Thread):
     def mysql_procesesslist(self):
         return self._mysql_procesesslist
 
+    @property
+    def mysql_global(self):
+        return self._mysql_global
+
     def run(self):
         while self._stop == False:
             if self._mode == 'process':
                 self.get_procesesslist()
-            else:
+            elif self._mode == 'status':
                 self.get_status()
+            else:
+                self.get_global()
             time.sleep(self._interval)
         self.cleanup_mysql()
 
@@ -179,14 +188,20 @@ class QueryThread(threading.Thread):
 
     def get_procesesslist(self):
         """SHOW PROCESSLIST"""
-        result = self.query("SELECT ID, HOST, DB, TIME, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST")
+        result = self.query("SELECT ID, HOST, DB, TIME, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST ORDER BY TIME DESC")
         if result is not None:
             self._mysql_procesesslist = result
-
-        self._update = True
+            self._update = True
 
         logging.debug(result)
         return self._mysql_procesesslist
+
+    def get_global(self):
+        """ """
+        result = self.query("select total_allocated from sys.memory_global_total")
+        logging.debug(result)
+
+        return self._mysql_global
 
     def get_query_per_second(self):
         if self._mysql_status is None:
@@ -211,6 +226,7 @@ class QueryThread(threading.Thread):
         except:
             qps = 0.0
             buffhit = 0.0
+
         self._mysql_status.update({'QPS': "%0.2f" % qps})
         self._mysql_status.update({'Buffer_hit': "%.2f" % float(buffhit)})
 
@@ -244,8 +260,8 @@ class MySQLStatus:
         "Handler_read_rnd_next",
         "Handler_update",
         "Handler_write",
-        "Key_read_requests",
-        "Key_reads",
+        # "Key_read_requests",
+        # "Key_reads",
         "Max_used_connections",
         "Open_files",
         "Opened_table_definitions",
@@ -313,7 +329,6 @@ class IntractiveMode(MySQLStatus):
             self.cleanup()
 
     def mainloop(self):
-        self.show_header()
         while True:
             c = self.window.getch()
             if c == ord('q'):
@@ -322,6 +337,8 @@ class IntractiveMode(MySQLStatus):
                 self.qthread.mode = 'process'
             elif c == ord('s'):
                 self.qthread.mode = 'status'
+            elif c == ord('g'):
+                self.qthread.mode = 'global'
             elif c == ord('h') or c == ord('?'):
                 self.show_help()
             elif c == curses.KEY_RESIZE:
@@ -337,10 +354,11 @@ class IntractiveMode(MySQLStatus):
         variables = self.qthread.mysql_variables
         data = {
             'hostname': variables.get('hostname'),
-            'currenttime': datetime.now(timezone('Asia/Seoul')).strftime("%Y-%m-%d %H:%m:%S"),
+            'currenttime': datetime.now(timezone('Asia/Seoul')).strftime("%Y-%m-%d %H:%M:%S"),
             'mysql_version': variables.get('version'),
+            'innodb_buffer': int(variables.get('innodb_buffer_pool_size'))/1024/1024,
         }
-        data = "%(hostname)s, %(currenttime)s, %(mysql_version)s" % data
+        data = "%(hostname)s, %(currenttime)s, %(mysql_version)s, %(innodb_buffer)d MB" % data
         self.window.addstr(0, 0, data)
         self.window.addstr(1, 0, "-" * 70)
 
@@ -350,8 +368,11 @@ class IntractiveMode(MySQLStatus):
         self.show_header()
         if self.qthread.mode == 'process':
             self.show_update_process()
-        else:
+        elif self.qthread.mode == 'status':
             self.show_update_status()
+        else:
+            self.show_update_global()
+            
 
     def show_update_status(self):
         status = self.qthread.mysql_status
@@ -373,18 +394,27 @@ class IntractiveMode(MySQLStatus):
         """
         process = self.qthread.mysql_procesesslist
         y = 2
-        header_format = '%7s, %8s, %8s, %7s, %6s, %12s,'
+        header_format = '%-5s, %-8s, %8s, %7s, %6s, %12s,'
         header_item = ('ID', 'HOST', 'DB', 'TIME', 'STATE', 'INFO')
         header = header_format % header_item
-        data_format = '%(ID)7s, %(HOST)8s, %(DB)8s, %(TIME)7s, %(STATE)6s, %(INFO)12s,'
+        data_format = '%(ID)-5s, %(HOST)-8s, %(DB)8s, %(TIME)7s, %(STATE)6s, %(INFO)12s,'
         self.window.addstr(y, 0, header, curses.A_BOLD)
         y = y + 1
         for item in process:
             data = data_format % item
             # TODO truncate if variables to display is too long.
-            if y +1 < self.window_max_y:
+            if len(data) > self.window_max_x:
+                data = data[0:self.window_max_x]
+
+            if y + 1 < self.window_max_y:
                 self.window.addstr(y, 0, data)
+            else: 
+                omits = len(process) + (y - 1) - self.window_max_y
+                self.window.addstr(self.window_max_y - 1, 0, "[%d items were truncated.]" %omits)
             y = y + 1
+
+    def show_update_global(self):
+        pass
 
     def cleanup(self):
         self.window.erase()
@@ -400,6 +430,7 @@ class IntractiveMode(MySQLStatus):
         """Help:
            s : switch to status mode
            p : switch to process mode
+           g : switch to server info mode
            h : show this help message
            ? : alias of help
            q : quit
@@ -412,7 +443,6 @@ class IntractiveMode(MySQLStatus):
 
         self.window.erase()
         self.window.nodelay(1)
-        self.show_header()
 
 
 class CliMode(MySQLStatus):
