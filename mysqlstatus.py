@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-This is cli monitoring tool for MySQL
+This is monitoring tool for MySQL 
 """
 
 import argparse
@@ -19,7 +19,8 @@ import mysql.connector as Database
 
 __title__ = 'mysqlstatus'
 __version__ = '1.0.0-DEV'
-__author__ = 'khkwon01'
+__original_author__ = 'Shoma Suzuki'
+__modified_author__ = 'khkwon01'
 __license__ = 'MIT'
 __copyright__ = 'Copyright 2023'
 
@@ -171,18 +172,21 @@ class QueryThread(threading.Thread):
             self.mysql_last_status = self._mysql_status
         result = self.query("SHOW GLOBAL STATUS")
         self._mysql_status = self.to_dict(result)
-        logging.debug(self._mysql_status)
+        #logging.debug(self._mysql_status)
         self.get_query_per_second()
         self._update = True
         return self._mysql_status
 
     def get_procesesslist(self):
-        """SHOW FULL PROCESSLIST"""
-        result = self.query("SHOW FULL PROCESSLIST")
-        self._mysql_procesesslist = result
+        """SHOW PROCESSLIST"""
+        result = self.query("SELECT ID, HOST, DB, TIME, STATE, INFO FROM INFORMATION_SCHEMA.PROCESSLIST")
+        if result is not None:
+            self._mysql_procesesslist = result
+
         self._update = True
+
         logging.debug(result)
-        return self.mysql_procesesslist()
+        return self._mysql_procesesslist
 
     def get_query_per_second(self):
         if self._mysql_status is None:
@@ -213,7 +217,7 @@ class QueryThread(threading.Thread):
         del self._mysql_status['Innodb_buffer_pool_read_requests']
         del self._mysql_status['Innodb_buffer_pool_reads']
 
-        return qps
+        return qps, buffhit
 
     def to_dict(self, dictset):
         return dict(
@@ -368,12 +372,13 @@ class IntractiveMode(MySQLStatus):
         Id, Host, db, User, Time, State, Type(Command), Query(Info)
         """
         process = self.qthread.mysql_procesesslist
-        y = 3
-        header_format = '%7s, %8s, %8s,%7s,%6s,%6s,%12s,'
-        header_item = ('Id', 'Host', 'db', 'Time', 'State', 'Type', 'Query')
+        y = 2
+        header_format = '%7s, %8s, %8s, %7s, %6s, %12s,'
+        header_item = ('ID', 'HOST', 'DB', 'TIME', 'STATE', 'INFO')
         header = header_format % header_item
-        data_format = '%(Id)7s, %(Host)8s, %(db)8s,%(Time)7s,%(State)6s,%(Command)6s,%(Info)12s,'
-        self.window.addstr(2, 0, header)
+        data_format = '%(ID)7s, %(HOST)8s, %(DB)8s, %(TIME)7s, %(STATE)6s, %(INFO)12s,'
+        self.window.addstr(y, 0, header, curses.A_BOLD)
+        y = y + 1
         for item in process:
             data = data_format % item
             # TODO truncate if variables to display is too long.
@@ -389,7 +394,7 @@ class IntractiveMode(MySQLStatus):
         curses.endwin()
         self.qthread.stop = True
 
-        self.qthread.join(timeout=5)
+        #self.qthread.join(timeout=5)
 
     def show_help(self):
         """Help:
