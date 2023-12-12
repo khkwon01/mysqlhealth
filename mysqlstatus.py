@@ -203,22 +203,29 @@ class QueryThread(threading.Thread):
             if result is not None:
                 self._mysql_global.update(result[0])
 
-        result = self.query("select total_allocated as Mem from sys.memory_global_total")
+        result = self.query("select total_allocated as 'Memory size(GB)' from sys.memory_global_total")
         add_dict(result)
 
-        result = self.query("select count(1) as Lockw from sys.innodb_lock_waits")
+        result = self.query("select count(1) as 'Session num(ea)' from performance_schema.processlist")
         add_dict(result)
 
-        result = self.query("select count(1) as Trx from information_schema.innodb_trx")
+        result = self.query("select count(1) as 'Lock num(ea)' from sys.innodb_lock_waits")
         add_dict(result)
 
-        result = self.query("select count(1) as Sess from performance_schema.processlist")
+        result = self.query("select count(1) as 'Transaction(ea)' from information_schema.innodb_trx")
         add_dict(result)
 
-        result = self.query("SELECT round(sum(size)/1024/1024,2) as Tmp FROM INFORMATION_SCHEMA.INNODB_SESSION_TEMP_TABLESPACES where state = 'ACTIVE'")
+        result = self.query("SELECT round(sum(size)/1024/1024,2) as 'Tmp size(MB)' FROM INFORMATION_SCHEMA.INNODB_SESSION_TEMP_TABLESPACES where state = 'ACTIVE'")
+        add_dict(result)
+
+        result = self.query("select count(1) as 'Table Full scan(ea)' from sys.statements_with_full_table_scans")
+        add_dict(result)
+
+        result = self.query("SELECT count(1) as 'Slow query(>1s,ea)' FROM sys.statements_with_runtimes_in_95th_percentile where total_latency >= 1000000")
         add_dict(result)
 
         logging.debug(self._mysql_global)
+        self._update = True
 
         return self._mysql_global
 
@@ -327,6 +334,7 @@ class IntractiveMode(MySQLStatus):
     def run(self):
         logging.debug('starting IntractiveMode')
         self.window = curses.initscr()
+        #curses.start_color()
         self.window.nodelay(1)
         self.set_window_size()
         curses.nl()
@@ -375,12 +383,13 @@ class IntractiveMode(MySQLStatus):
             'innodb_buffer': int(variables.get('innodb_buffer_pool_size'))/1024/1024,
         }
         data = "%(hostname)s, %(currenttime)s, %(mysql_version)s, %(innodb_buffer)d MB" % data
-        self.window.addstr(0, 0, data)
-        self.window.addstr(1, 0, "-" * 70)
+        self.window.addstr(1, 1, data)
+        self.window.addstr(2, 1, "-" * 70)
 
     def show_update(self):
         self.qthread.update = False
         self.window.erase()
+        self.window.box()
         self.show_header()
         if self.qthread.mode == 'process':
             self.show_update_process()
@@ -392,16 +401,16 @@ class IntractiveMode(MySQLStatus):
 
     def show_update_status(self):
         status = self.qthread.mysql_status
-        y = 2
+        y = 3
         for k in self.keywords:
             data = "%-35s: %12s" % (k, status.get(k))
             if y + 1 < self.window_max_y:
-                self.window.addstr(y, 0, data)
+                self.window.addstr(y, 1, data)
 
             y = y + 1
         if len(self.keywords) + 1 > self.window_max_y:
             omits = len(self.keywords) + 1 - self.window_max_y
-            self.window.addstr(self.window_max_y - 1, 0,
+            self.window.addstr(self.window_max_y - 1, 1,
                 "[%d items were truncated.]" % omits)
 
     def show_update_process(self):
@@ -409,28 +418,35 @@ class IntractiveMode(MySQLStatus):
         Id, Host, db, User, Time, State, Type(Command), Query(Info)
         """
         process = self.qthread.mysql_procesesslist
-        y = 2
+        y = 3
         header_format = '%-5s, %-8s, %8s, %7s, %6s, %12s,'
         header_item = ('ID', 'HOST', 'DB', 'TIME', 'STATE', 'INFO')
         header = header_format % header_item
         data_format = '%(ID)-5s, %(HOST)-8s, %(DB)8s, %(TIME)7s, %(STATE)6s, %(INFO)12s,'
-        self.window.addstr(y, 0, header, curses.A_BOLD)
+        self.window.addstr(y, 1, header, curses.A_BOLD)
         y = y + 1
         for item in process:
             data = data_format % item
             # TODO truncate if variables to display is too long.
             if len(data) > self.window_max_x:
-                data = data[0:self.window_max_x]
+                data = data[0:self.window_max_x-2]
 
             if y + 1 < self.window_max_y:
-                self.window.addstr(y, 0, data)
+                self.window.addstr(y, 1, data)
             else: 
                 omits = len(process) + (y - 1) - self.window_max_y
-                self.window.addstr(self.window_max_y - 1, 0, "[%d items were truncated.]" %omits)
+                self.window.addstr(self.window_max_y - 1, 1, "[%d items were truncated.]" %omits)
             y = y + 1
 
     def show_update_global(self):
-        pass
+        glob = self.qthread.mysql_global
+    
+        y = 3
+
+        for key,val in glob.items():
+            data = "%-35s: %12s" % (key, val)
+            self.window.addstr(y, 1, data)
+            y = y + 1
 
     def cleanup(self):
         self.window.erase()
