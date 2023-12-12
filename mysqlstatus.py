@@ -224,6 +224,12 @@ class QueryThread(threading.Thread):
         result = self.query("SELECT count(1) as 'Slow query(>1s,ea)' FROM sys.statements_with_runtimes_in_95th_percentile where total_latency >= 1000000")
         add_dict(result)
 
+        result = self.query("select count(1) as 'Replication(ea)' from performance_schema.replication_group_members")
+        add_dict(result)
+
+        result = self.query("select round(SUM(data_length+index_length)/1024/1024/1024,2) as 'Database size(GB)' FROM information_schema.tables")
+        add_dict(result)
+
         logging.debug(self._mysql_global)
         self._update = True
 
