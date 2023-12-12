@@ -83,7 +83,7 @@ class QueryThread(threading.Thread):
     _mysql_variables = None
     _mysql_status = None
     _mysql_procesesslist = None
-    _mysql_global = None
+    _mysql_global = {}
 
     def __init__(self, **kwargs):
 
@@ -198,8 +198,27 @@ class QueryThread(threading.Thread):
 
     def get_global(self):
         """ """
-        result = self.query("select total_allocated from sys.memory_global_total")
-        logging.debug(result)
+
+        def add_dict(result):
+            if result is not None:
+                self._mysql_global.update(result[0])
+
+        result = self.query("select total_allocated as Mem from sys.memory_global_total")
+        add_dict(result)
+
+        result = self.query("select count(1) as Lockw from sys.innodb_lock_waits")
+        add_dict(result)
+
+        result = self.query("select count(1) as Trx from information_schema.innodb_trx")
+        add_dict(result)
+
+        result = self.query("select count(1) as Sess from performance_schema.processlist")
+        add_dict(result)
+
+        result = self.query("SELECT round(sum(size)/1024/1024,2) as Tmp FROM INFORMATION_SCHEMA.INNODB_SESSION_TEMP_TABLESPACES where state = 'ACTIVE'")
+        add_dict(result)
+
+        logging.debug(self._mysql_global)
 
         return self._mysql_global
 
@@ -229,9 +248,6 @@ class QueryThread(threading.Thread):
 
         self._mysql_status.update({'QPS': "%0.2f" % qps})
         self._mysql_status.update({'Buffer_hit': "%.2f" % float(buffhit)})
-
-        del self._mysql_status['Innodb_buffer_pool_read_requests']
-        del self._mysql_status['Innodb_buffer_pool_reads']
 
         return qps, buffhit
 
