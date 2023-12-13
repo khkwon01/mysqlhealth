@@ -221,6 +221,12 @@ class QueryThread(threading.Thread):
         result = self.query("select count(1) as 'Table Full scan(ea)' from sys.statements_with_full_table_scans")
         add_dict(result)
 
+        result = self.query("select round(SUM(data_length+index_length)/1024/1024/1024,2) as 'Database size(GB)' FROM information_schema.tables")
+        add_dict(result)
+
+        result = self.query("select count(1) as 'ErrorLog(1hour,ea)' from performance_schema.error_log where logged > now() - interval 1 hour and PRIO = 'Error'")
+        add_dict(result)
+
         result = self.query("SELECT count(1) as 'Slow query(>1s,ea)' FROM sys.statements_with_runtimes_in_95th_percentile where total_latency >= 1000000")
         add_dict(result)
 
@@ -232,9 +238,6 @@ class QueryThread(threading.Thread):
             self._mysql_global.update({'Replication(ea)' : "%s" % str(len(result))})
         else:
             self._mysql_global.update({'Replication(ea)' : '0'})
-
-        result = self.query("select round(SUM(data_length+index_length)/1024/1024/1024,2) as 'Database size(GB)' FROM information_schema.tables")
-        add_dict(result)
 
         logging.debug(self._mysql_global)
         self._update = True
@@ -353,6 +356,7 @@ class IntractiveMode(MySQLStatus):
         curses.nl()
         curses.noecho()
         curses.cbreak()
+        curses.curs_set(0)
 
         try:
             self.mainloop()
