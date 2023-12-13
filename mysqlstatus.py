@@ -224,8 +224,14 @@ class QueryThread(threading.Thread):
         result = self.query("SELECT count(1) as 'Slow query(>1s,ea)' FROM sys.statements_with_runtimes_in_95th_percentile where total_latency >= 1000000")
         add_dict(result)
 
-        result = self.query("select count(1) as 'Replication(ea)' from performance_schema.replication_group_members")
+        result = self.query("select count(1) as 'GroupHA(ea)' from performance_schema.replication_group_members where member_state = 'ONLINE'")
         add_dict(result)
+
+        result = self.query("show replicas")
+        if result is not None:
+            self._mysql_global.update({'Replication(ea)' : "%s" % str(len(result))})
+        else:
+            self._mysql_global.update({'Replication(ea)' : '0'})
 
         result = self.query("select round(SUM(data_length+index_length)/1024/1024/1024,2) as 'Database size(GB)' FROM information_schema.tables")
         add_dict(result)
@@ -291,6 +297,7 @@ class MySQLStatus:
         "Handler_write",
         # "Key_read_requests",
         # "Key_reads",
+        "Innodb_undo_tablespaces_active",
         "Max_used_connections",
         "Open_files",
         "Opened_table_definitions",
