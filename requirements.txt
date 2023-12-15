@@ -1,2 +1,4 @@
-mysql-connector-python==8.1.0
+mysql-connector-python==8.2.0
+elastic-transport==8.11.0
+elasticsearch==8.11.1
 requests==2.31.0
