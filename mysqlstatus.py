@@ -498,6 +498,9 @@ class CliMode(MySQLStatus):
     def run(self):
         logging.debug('starting CliMode')
         self.output = self.options.outfile
+        if self.output is None:
+            self.output = sys.stdout
+
         try:
             self.mainloop()
         except (KeyboardInterrupt, SystemExit) as event:
@@ -520,8 +523,10 @@ class CliMode(MySQLStatus):
         self.qthread.update = False
         if self.qthread.mode == 'process':
             self.show_update_process()
-        else:
+        elif self.qthread.mode == 'status':
             self.show_update_status()
+        else:
+            self.show_update_global()
         self.output.write("\n")
 
     def show_update_status(self):
@@ -532,10 +537,13 @@ class CliMode(MySQLStatus):
         process = self.qthread.mysql_procesesslist
         self.output.write(str(process))
 
+    def show_update_global(self):
+        glob = self.qthread.mysql_global
+        self.output.write(str(glob))
+
     def cleanup(self):
         self.qthread.stop = True
-        while self.qthread.is_Alive():
-            pass
+
 
 
 if __name__ == '__main__':
