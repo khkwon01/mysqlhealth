@@ -12,8 +12,10 @@ import os
 import sys
 import threading
 import time
+import yaml
 from datetime import datetime
 from pytz import timezone
+from elasticsearch import Elasticsearch
 
 import mysql.connector as Database
 
@@ -57,6 +59,11 @@ def get_args_parser():
         nargs='?',
         type=argparse.FileType('w'),
         help="Output result file. avairable for non-interactive.")
+    parser.add_argument("-e", "--elk",
+        default=None,
+        nargs='?',
+        type=argparse.FileType('r'),
+        help="Elk Conn info file. avairable for non-interactive.")
     parser.add_argument("-n", "--nonint",
         default=False,
         action='store_true',
@@ -332,7 +339,8 @@ class MySQLStatus:
                 host=self.options.host,
                 user=self.options.user,
                 port=self.options.port,
-                passwd=self.options.password)
+                passwd=self.options.password,
+                connection_timeout=10)
         except Exception as err:
             logging.exception(err)
             print(err)
@@ -544,6 +552,78 @@ class CliMode(MySQLStatus):
     def cleanup(self):
         self.qthread.stop = True
 
+class SendMode(MySQLStatus):
+
+    def run(self):
+        logging.debug('starting Send the data to Elk')
+        self.elkconf = yaml.load(options.elk, Loader=yaml.FullLoader)
+        if(self.elkconf['elk']['connect']['ssl'] == ''):
+           self.sslcert = self.elkconf['elk']['connect']['ssl']
+        else:
+           self.sslcert = None
+   
+        try:
+           if(self.sslcert):
+              self.elkconn = Elasticsearch(
+                                hosts=self.elkconf['elk']['connect']['url'],
+                                ca_certs=self.sslcert,
+                                basic_auth=(self.elkconf['elk']['connect']['user'],
+                                            self.elkconf['elk']['connect']['pass']),
+                                request_timeout=10
+                             )
+           else:
+              self.elkconn = Elasticsearch(
+                                hosts=self.elkconf['elk']['connect']['url'],
+                                verify_certs=False,
+                                ssl_show_warn=False,
+                                basic_auth=(self.elkconf['elk']['connect']['user'],
+                                            self.elkconf['elk']['connect']['pass']),
+                                request_timeout=10
+                             )                            
+
+           print(self.elkconn.info())
+           logging.exception(self.elkconn.info())
+
+           self.mainloop()
+        except (KeyboardInterrupt, SystemExit):
+            self.cleanup()
+        except Exception as err:
+            logging.exception(err)
+            self.cleanup()
+            print(err)
+        finally:
+            self.cleanup()
+
+    def mainloop(self):
+        while True:
+            if self.qthread.update == True:
+                self.output_outside()
+                time.sleep(0.1)
+
+    def output_outside(self):
+        self.qthread.update = False
+        if self.qthread.mode == 'process':
+            self.send_update_process()
+        elif self.qthread.mode == 'status':
+            self.send_update_status()
+        else:
+            self.send_update_global()
+    
+    def send_update_process(self):
+        process = self.qthread.mysql_procesesslist
+        print(process)
+
+    def send_update_status(self):
+        status = self.qthread.mysql_status
+        print(status)
+
+    def send_update_global(self):
+        glob = self.qthread.mysql_global
+        print(glob)
+
+    def cleanup(self):
+        self.elkconn.close()
+        self.qthread.stop = True
 
 
 if __name__ == '__main__':
@@ -568,7 +648,10 @@ if __name__ == '__main__':
         logging.basicConfig(handlers = [ nl_hanlder ])
 
     if(options.nonint):
-        monitor = CliMode(options)
+        if(options.elk is not None):
+            monitor = SendMode(options)
+        else:
+            monitor = CliMode(options)
     else:
         monitor = IntractiveMode(options)
     monitor.run()

@@ -8,7 +8,9 @@ g_data_json = {'Memory size(GB)': '2.42 GiB', 'Session num(ea)': 5, 'Lock num(ea
 # Create the client instance
 client = Elasticsearch(
     "https://localhost:9200",
-    ca_certs="/etc/elasticsearch/certs/http_ca.crt",
+#    ca_certs="/etc/elasticsearch/certs/http_ca.crt",
+    verify_certs=False,
+    ssl_show_warn=False,
     basic_auth=("admin", ELASTIC_PASSWORD)
 )
 
