@@ -10,4 +10,5 @@ mysql-health-check
 ![image](https://github.com/khkwon01/mysqlhealth/assets/8789421/5aef97d7-3bd6-44c5-81cb-824a104a3695)
 
 ### 4. ELK + Kibana Monitoring View (example)
-![image](https://github.com/khkwon01/mysqlhealth/assets/8789421/25fbc8df-5669-432d-b294-3abb8a19a80d)
+![image](https://github.com/khkwon01/mysqlhealth/assets/8789421/4ee27222-de00-4082-99d0-a10054cfca69)
+
