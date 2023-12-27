@@ -13,6 +13,7 @@ import sys
 import threading
 import time
 import yaml
+import json
 from datetime import datetime
 from pytz import timezone
 from elasticsearch import Elasticsearch
@@ -63,7 +64,7 @@ def get_args_parser():
         default=None,
         nargs='?',
         type=argparse.FileType('r'),
-        help="Elk Conn info file. avairable for non-interactive.")
+        help="Elk Conn info file(only mode:status,global). avairable for non-interactive.")
     parser.add_argument("-n", "--nonint",
         default=False,
         action='store_true',
@@ -222,13 +223,13 @@ class QueryThread(threading.Thread):
         result = self.query("select count(1) as 'Transaction(ea)' from information_schema.innodb_trx")
         add_dict(result)
 
-        result = self.query("SELECT round(sum(size)/1024/1024,2) as 'Tmp size(MB)' FROM INFORMATION_SCHEMA.INNODB_SESSION_TEMP_TABLESPACES where state = 'ACTIVE'")
+        result = self.query("SELECT convert(round(sum(size)/1024/1024,2), FLOAT) as 'Tmp size(MB)' FROM INFORMATION_SCHEMA.INNODB_SESSION_TEMP_TABLESPACES where state = 'ACTIVE'")
         add_dict(result)
 
         result = self.query("select count(1) as 'Table Full scan(ea)' from sys.statements_with_full_table_scans")
         add_dict(result)
 
-        result = self.query("select round(SUM(data_length+index_length)/1024/1024/1024,2) as 'Database size(GB)' FROM information_schema.tables")
+        result = self.query("select convert(round(SUM(data_length+index_length)/1024/1024/1024,2),FLOAT) as 'Database size(GB)' FROM information_schema.tables")
         add_dict(result)
 
         result = self.query("select count(1) as 'ErrorLog(1hour,ea)' from performance_schema.error_log where logged > now() - interval 1 hour and PRIO = 'Error'")
@@ -595,6 +596,8 @@ class SendMode(MySQLStatus):
             self.cleanup()
 
     def mainloop(self):
+        self.variables = self.qthread.mysql_variables
+
         while True:
             if self.qthread.update == True:
                 self.output_outside()
@@ -602,24 +605,46 @@ class SendMode(MySQLStatus):
 
     def output_outside(self):
         self.qthread.update = False
-        if self.qthread.mode == 'process':
-            self.send_update_process()
-        elif self.qthread.mode == 'status':
+        if self.qthread.mode == 'status':
             self.send_update_status()
         else:
             self.send_update_global()
     
-    def send_update_process(self):
-        process = self.qthread.mysql_procesesslist
-        print(process)
-
     def send_update_status(self):
         status = self.qthread.mysql_status
-        print(status)
+        host = self.variables.get('hostname')
+        version = self.variables.get('version')
+
+        self.todayindex = datetime.utcnow().strftime('mysql-mon-status-%Y%m%d')
+        if not self.elkconn.indices.exists(index=self.todayindex):
+            self.elkconn.indices.create(index=self.todayindex, 
+                     settings={"index.mapping.total_fields.limit": 2000})        
+
+        status.update({'dbhost' : host})
+        status.update({'dbversion' : version})
+        status.update({'timestamp' : datetime.utcnow().isoformat()})
+
+        outdata = json.dumps(status, default=str)
+        self.elkconn.index(index=self.todayindex, document=outdata)
 
     def send_update_global(self):
         glob = self.qthread.mysql_global
-        print(glob)
+        host = self.variables.get('hostname')
+        version = self.variables.get('version')
+
+        self.todayindex = datetime.utcnow().strftime('mysql-mon-global-%Y%m%d')
+        if not self.elkconn.indices.exists(index=self.todayindex):
+            self.elkconn.indices.create(index=self.todayindex, 
+                     settings={"index.mapping.total_fields.limit": 2000})
+
+        glob.update({'dbhost' : host})
+        glob.update({'dbversion' : version})
+        glob.update({'timestamp' : datetime.utcnow().isoformat()})
+
+        outdata = json.dumps(glob, default=str)
+        self.elkconn.index(index=self.todayindex, document=outdata)
+
+        logging.debug(glob)
 
     def cleanup(self):
         self.elkconn.close()
@@ -649,6 +674,9 @@ if __name__ == '__main__':
 
     if(options.nonint):
         if(options.elk is not None):
+            if options.mode == 'process':
+               parser.print_help()
+               sys.exit()
             monitor = SendMode(options)
         else:
             monitor = CliMode(options)
