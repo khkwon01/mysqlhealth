@@ -1,0 +1,135 @@
+{
+  "mappings": {
+    "properties": {
+      "Aborted_connects": {
+        "type": "long"
+      },
+      "Binlog_cache_disk_use": {
+        "type": "long"
+      },
+      "Buffer_hit": {
+        "type": "long"
+      },
+      "Bytes_received": {
+        "type": "long"
+      },
+      "Bytes_sent": {
+        "type": "long"
+      },
+      "Connections": {
+        "type": "long"
+      },
+      "Created_tmp_disk_tables": {
+        "type": "long"
+      },
+      "Created_tmp_files": {
+        "type": "long"
+      },
+      "Created_tmp_tables": {
+        "type": "long"
+      },
+      "Handler_delete": {
+        "type": "long"
+      },
+      "Handler_read_first": {
+        "type": "long"
+      },
+      "Handler_read_rnd": {
+        "type": "long"
+      },
+      "Handler_read_rnd_next": {
+        "type": "long"
+      },
+      "Handler_update": {
+        "type": "long"
+      },
+      "Handler_write": {
+        "type": "long"
+      },
+      "Innodb_undo_tablespaces_active": {
+        "type": "long"
+      },
+      "Max_used_connections": {
+        "type": "long"
+      },
+      "Open_files": {
+        "type": "long"
+      },
+      "Opened_table_definitions": {
+        "type": "long"
+      },
+      "Opened_tables": {
+        "type": "long"
+      },
+      "QPS": {
+        "type": "long"
+      },
+      "Questions": {
+        "type": "long"
+      },
+      "Select_full_join": {
+        "type": "long"
+      },
+      "Select_full_range_join": {
+        "type": "long"
+      },
+      "Select_range": {
+        "type": "long"
+      },
+      "Select_range_check": {
+        "type": "long"
+      },
+      "Select_scan": {
+        "type": "long"
+      },
+      "Slow_queries": {
+        "type": "long"
+      },
+      "Sort_merge_passes": {
+        "type": "long"
+      },
+      "Sort_scan": {
+        "type": "long"
+      },
+      "Table_locks_immediate": {
+        "type": "long"
+      },
+      "Table_locks_waited": {
+	"type": "long"
+      },
+      "Threads_connected": {
+        "type": "long"
+      },
+      "Threads_created": {
+        "type": "long"
+      },
+      "Threads_running": {
+        "type": "long"
+      },
+      "Uptime": {
+        "type": "long"
+      },
+      "dbhost": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "dbversion": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}

@@ -6,3 +6,6 @@ elk:
                 ssl : /etc/elasticsearch/certs/http_ca.crt   # disable : ''
                 user : elastic
                 pass : Welcome#1
+        docmap:
+                status : status_map.json
+                global : global_map.json
