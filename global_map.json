@@ -1,0 +1,60 @@
+{
+  "mappings": {
+    "properties": {
+      "Database size(GB)": {
+        "type": "float"
+      },
+      "ErrorLog(1hour,ea)": {
+        "type": "long"
+      },
+      "GroupHA(ea)": {
+        "type": "long"
+      },
+      "Lock num(ea)": {
+        "type": "long"
+      },
+      "Memory size(GB)": {
+        "type": "text"
+      },
+      "Replication(ea)": {
+        "type": "long"
+      },
+      "Session num(ea)": {
+        "type": "long"
+      },
+      "Slow query(>1s,ea)": {
+        "type": "long"
+      },
+      "Table Full scan(ea)": {
+        "type": "long"
+      },
+      "Tmp size(MB)": {
+        "type": "float"
+      },
+      "Transaction(ea)": {
+        "type": "long"
+      },
+      "dbhost": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "dbversion": {
+        "type": "text",
+        "fields": {
+          "keyword": {
+            "type": "keyword",
+            "ignore_above": 256
+          }
+        }
+      },
+      "timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}

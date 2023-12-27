@@ -611,21 +611,28 @@ class SendMode(MySQLStatus):
             self.send_update_global()
     
     def send_update_status(self):
-        status = self.qthread.mysql_status
+        allstatus = self.qthread.mysql_status
         host = self.variables.get('hostname')
         version = self.variables.get('version')
+        status = {}
+
+        for k in self.keywords:
+            status.update({ k : allstatus.get(k) })
 
         self.todayindex = datetime.utcnow().strftime('mysql-mon-status-%Y%m%d')
         if not self.elkconn.indices.exists(index=self.todayindex):
+            status_map = {}
+            with open(self.elkconf['elk']['docmap']['status'], 'r') as fp:
+                status_map = json.load(fp)
             self.elkconn.indices.create(index=self.todayindex, 
-                     settings={"index.mapping.total_fields.limit": 2000})        
+                     settings={"index.mapping.total_fields.limit": 2000}, body=status_map)        
 
         status.update({'dbhost' : host})
         status.update({'dbversion' : version})
         status.update({'timestamp' : datetime.utcnow().isoformat()})
 
         outdata = json.dumps(status, default=str)
-        self.elkconn.index(index=self.todayindex, document=outdata)
+        self.elkconn.index(index=self.todayindex, body=outdata)
 
     def send_update_global(self):
         glob = self.qthread.mysql_global
@@ -634,15 +641,17 @@ class SendMode(MySQLStatus):
 
         self.todayindex = datetime.utcnow().strftime('mysql-mon-global-%Y%m%d')
         if not self.elkconn.indices.exists(index=self.todayindex):
-            self.elkconn.indices.create(index=self.todayindex, 
-                     settings={"index.mapping.total_fields.limit": 2000})
+            global_map = {}
+            with open(self.elkconf['elk']['docmap']['global'], 'r') as fp:
+                global_map = json.load(fp)
+            self.elkconn.indices.create(index=self.todayindex, body=global_map)
 
         glob.update({'dbhost' : host})
         glob.update({'dbversion' : version})
         glob.update({'timestamp' : datetime.utcnow().isoformat()})
 
         outdata = json.dumps(glob, default=str)
-        self.elkconn.index(index=self.todayindex, document=outdata)
+        self.elkconn.index(index=self.todayindex, body=outdata)
 
         logging.debug(glob)
 
