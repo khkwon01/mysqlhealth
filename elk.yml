@@ -4,5 +4,5 @@ elk:
         connect:
                 url : https://localhost:9200
                 ssl : /etc/elasticsearch/certs/http_ca.crt   # disable : ''
-                user : admin
+                user : elastic
                 pass : Welcome#1
