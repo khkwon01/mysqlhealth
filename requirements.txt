@@ -3,3 +3,4 @@ elastic-transport==8.11.0
 elasticsearch==8.11.1
 requests==2.31.0
 PyYAML==6.0.1
+pytz==2024.1
