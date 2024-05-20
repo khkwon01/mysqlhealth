@@ -313,7 +313,7 @@ class MySQLStatus:
         "Open_files",
         "Opened_table_definitions",
         "Opened_tables",
-        "Opened_tables",
+        # "Opened_tables",
         "Questions",
         "Select_full_join",
         "Select_full_range_join",
